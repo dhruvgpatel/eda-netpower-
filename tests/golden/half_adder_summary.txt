@@ -1,0 +1,37 @@
+================================================================================
+Netpower Dynamic Power Estimation Summary
+================================================================================
+Design Information:
+  Module Name:                 half_adder
+  Total Nets:                  4
+  Primary Inputs:              2
+  Primary Outputs:             2
+  Logic Gates:                 2
+
+Simulation Parameters:
+  Vectors:                     10000
+  Measured Intervals:          9999
+  Random Seed:                 42
+
+Electrical Parameters:
+  Operating Voltage:           1.000000 V
+  Operating Frequency:         100000000.000000 Hz
+  Default Capacitance:         2.0000 fF
+  Capacitance Overrides:       0
+
+Estimated Power Results:
+  Total Dynamic Power:         188.098810 nW
+  Total Dynamic Power (Watts): 1.880988e-07 W
+
+Model & Methodology Notes:
+  Power Model:                 P_dynamic = 0.5 * alpha * C * V^2 * f
+  Alpha Convention:            Total (0->1 + 1->0) transitions per net per interval
+  Capacitance:                 Converted to Farads (1 fF = 1e-15 F)
+  Simulation:                  Zero-delay combinational simulation
+
+Limitations:
+  - Educational estimator; NOT for sign-off power analysis.
+  - Zero-delay simulation does not model glitches, hazards, or transport delays.
+  - Does not model leakage power, internal cell power, or short-circuit current.
+  - Does not model sequential elements, clock trees, or wire layout parasitics.
+================================================================================

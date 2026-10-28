@@ -1,0 +1,5 @@
+net,role,transitions,rising_transitions,falling_transitions,alpha,capacitance_fF,power_nW
+a,input,4996,2498,2498,0.499650,2.0000,49.964996
+b,input,5057,2529,2528,0.505751,2.0000,50.575058
+carry,output,3762,1881,1881,0.376238,2.0000,37.623762
+sum,output,4993,2497,2496,0.499350,2.0000,49.934993

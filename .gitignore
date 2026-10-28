@@ -1,0 +1,25 @@
+# Build directories
+build*/
+cmake-build-*/
+out/
+dist/
+
+# Results and temporary files
+results*/
+*.tmp
+*.log
+
+# CTest / CMake artifacts
+Testing/
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+cmake_install.cmake
+
+# Editor and OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+

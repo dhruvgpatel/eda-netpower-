@@ -1,0 +1,59 @@
+name: Release Linux CLI
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-package-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+
+      - name: Configure Release build
+        run: cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build-release --parallel
+
+      - name: Run complete test suite
+        run: ctest --test-dir build-release --output-on-failure
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          test -x build-release/bin/netpower
+          VERSION="${GITHUB_REF_NAME}"
+          STAGE="dist/netpower-${VERSION}-linux-x86_64"
+          mkdir -p "${STAGE}/examples"
+          install -m 0755 build-release/bin/netpower "${STAGE}/netpower"
+          install -m 0644 README.md "${STAGE}/README.md"
+          install -m 0644 LICENSE "${STAGE}/LICENSE"
+          cp -a examples/. "${STAGE}/examples/"
+          tar -C dist -czf "dist/netpower-${VERSION}-linux-x86_64.tar.gz" "netpower-${VERSION}-linux-x86_64"
+          cd dist
+          sha256sum "netpower-${VERSION}-linux-x86_64.tar.gz" > "netpower-${VERSION}-linux-x86_64.tar.gz.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/*.tar.gz \
+            dist/*.sha256 \
+            --title "netpower ${GITHUB_REF_NAME}" \
+            --generate-notes
