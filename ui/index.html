@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>netpower — Results & Activity Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(150, 150, 150, 0.5); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased p-4 md:p-6 min-h-screen">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div>
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-mono font-bold text-emerald-400 text-lg">
+            ⚡
+          </div>
+          <div>
+            <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white">netpower Results Dashboard</h1>
+            <p class="text-xs md:text-sm text-slate-400">Gate-Level Netlist Switching Activity & Dynamic Power Analyzer</p>
+          </div>
+        </div>
+      </div>
+      <!-- Preset Selectors -->
+      <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1 rounded-lg text-xs font-medium">
+        <button onclick="selectCircuit('half_adder')" id="btn-half_adder" class="px-3 py-1.5 rounded-md transition-colors bg-emerald-600 text-white font-semibold">Half Adder</button>
+        <button onclick="selectCircuit('full_adder')" id="btn-full_adder" class="px-3 py-1.5 rounded-md transition-colors text-slate-400 hover:text-white">Full Adder</button>
+        <button onclick="selectCircuit('inverter')" id="btn-inverter" class="px-3 py-1.5 rounded-md transition-colors text-slate-400 hover:text-white">Inverter</button>
+        <button onclick="selectCircuit('custom')" id="btn-custom" class="px-3 py-1.5 rounded-md transition-colors text-slate-400 hover:text-white">Upload / Custom</button>
+      </div>
+    </header>
+
+    <!-- Custom Upload Panel (collapsible) -->
+    <section id="custom-upload-section" class="hidden bg-slate-900/60 border border-dashed border-slate-700 rounded-xl p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold text-sm text-white">Load Custom Run Output</h3>
+        <span class="text-xs text-slate-400">Drop files or paste CSV content</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Upload net_activity.csv or summary.txt</label>
+          <input type="file" id="file-input" multiple accept=".csv,.txt" onchange="handleFileUpload(event)" class="text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Or paste net_activity.csv text</label>
+          <div class="flex gap-2">
+            <input type="text" id="paste-input" placeholder="net,role,transitions,rising_transitions,falling_transitions,alpha,capacitance_fF,power_nW..." class="w-full text-xs bg-slate-950 border border-slate-700 rounded-md px-3 py-1.5 focus:outline-none focus:border-emerald-500 text-white">
+            <button onclick="handlePasteInput()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-medium whitespace-nowrap">Load</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Overview KPI Cards -->
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 font-medium">Module Name</div>
+        <div class="text-lg font-bold font-mono text-emerald-400 truncate mt-1" id="kpi-module">half_adder</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 font-medium">Dynamic Power</div>
+        <div class="text-lg font-bold font-mono text-emerald-400 mt-1" id="kpi-power">188.10 nW</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 font-medium">Total Nets</div>
+        <div class="text-lg font-bold font-mono text-white mt-1" id="kpi-nets">4</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 font-medium">Logic Gates</div>
+        <div class="text-lg font-bold font-mono text-white mt-1" id="kpi-gates">2</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 font-medium">Vectors (N)</div>
+        <div class="text-lg font-bold font-mono text-white mt-1" id="kpi-vectors">10,000</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 font-medium">Avg Activity (α)</div>
+        <div class="text-lg font-bold font-mono text-cyan-400 mt-1" id="kpi-alpha">0.4702</div>
+      </div>
+    </section>
+
+    <!-- Interactive Power Scaling Sandbox -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <span>⚙️</span> Interactive Power Scaling Simulator
+          </h3>
+          <p class="text-xs text-slate-400">
+            Explore scaling using formula: <code class="text-emerald-400 font-mono">P = 0.5 × α × C × V² × f</code>
+          </p>
+        </div>
+        <button onclick="resetScalingParameters()" class="text-xs text-slate-400 hover:text-white underline self-start sm:self-auto">Reset to Baseline</button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+        <!-- Voltage Slider -->
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">Voltage (V)</span>
+            <span class="font-mono font-bold text-emerald-400" id="val-voltage">1.00 V</span>
+          </div>
+          <input type="range" id="slider-voltage" min="0.5" max="2.0" step="0.05" value="1.0" oninput="updateScaledPower()" class="w-full accent-emerald-500 cursor-pointer">
+          <div class="flex justify-between text-[11px] text-slate-500">
+            <span>0.5 V</span>
+            <span>1.0 V</span>
+            <span>2.0 V</span>
+          </div>
+        </div>
+
+        <!-- Frequency Slider -->
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">Frequency (f)</span>
+            <span class="font-mono font-bold text-emerald-400" id="val-frequency">100 MHz</span>
+          </div>
+          <input type="range" id="slider-frequency" min="10" max="500" step="10" value="100" oninput="updateScaledPower()" class="w-full accent-emerald-500 cursor-pointer">
+          <div class="flex justify-between text-[11px] text-slate-500">
+            <span>10 MHz</span>
+            <span>100 MHz</span>
+            <span>500 MHz</span>
+          </div>
+        </div>
+
+        <!-- Capacitance Multiplier Slider -->
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">Capacitance Scaling</span>
+            <span class="font-mono font-bold text-emerald-400" id="val-capacitance">1.00× (2.0 fF)</span>
+          </div>
+          <input type="range" id="slider-capacitance" min="0.25" max="4.0" step="0.25" value="1.0" oninput="updateScaledPower()" class="w-full accent-emerald-500 cursor-pointer">
+          <div class="flex justify-between text-[11px] text-slate-500">
+            <span>0.25×</span>
+            <span>1.0×</span>
+            <span>4.0×</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visual Power Distribution & Net Activity Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Dynamic Power Bar Chart -->
+      <section class="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+        <div>
+          <h3 class="font-bold text-sm text-white mb-1">Power Dissipation by Net</h3>
+          <p class="text-xs text-slate-400 mb-4">Relative contribution of each modeled net</p>
+          <div id="power-bar-container" class="space-y-3">
+            <!-- Dynamic bars inserted here -->
+          </div>
+        </div>
+        <div class="pt-4 mt-4 border-t border-slate-800 text-xs text-slate-400">
+          <div class="flex justify-between">
+            <span>Peak Net Dissipator:</span>
+            <span class="font-mono font-bold text-white" id="stat-peak-net">-</span>
+          </div>
+          <div class="flex justify-between mt-1">
+            <span>Model:</span>
+            <span>Zero-delay switched capacitance</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Detailed Net Table -->
+      <section class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 flex flex-col">
+        <!-- Table Controls -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <input type="text" id="net-search" placeholder="Filter by net name..." oninput="renderTable()" class="text-xs bg-slate-950 border border-slate-700 rounded-md px-3 py-1.5 focus:outline-none focus:border-emerald-500 text-white w-44">
+            <!-- Role Filter -->
+            <select id="role-filter" onchange="renderTable()" class="text-xs bg-slate-950 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-emerald-500 text-white">
+              <option value="ALL">All Roles</option>
+              <option value="input">Inputs</option>
+              <option value="internal">Internals</option>
+              <option value="output">Outputs</option>
+              <option value="input_output">Input/Outputs</option>
+            </select>
+          </div>
+          <div class="text-xs text-slate-400 font-mono">
+            Showing <span id="table-count" class="text-white font-bold">0</span> nets
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto rounded-lg border border-slate-800 flex-1">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950/80 text-slate-400 font-medium uppercase border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3 cursor-pointer hover:text-white" onclick="sortTable('name')">Net ⇕</th>
+                <th class="py-2.5 px-3 cursor-pointer hover:text-white" onclick="sortTable('role')">Role ⇕</th>
+                <th class="py-2.5 px-3 text-right cursor-pointer hover:text-white" onclick="sortTable('transitions')">Transitions ⇕</th>
+                <th class="py-2.5 px-3 text-right cursor-pointer hover:text-white" onclick="sortTable('alpha')">Activity (α) ⇕</th>
+                <th class="py-2.5 px-3 text-right cursor-pointer hover:text-white" onclick="sortTable('capacitance')">Cap (fF) ⇕</th>
+                <th class="py-2.5 px-3 text-right cursor-pointer hover:text-white text-emerald-400" onclick="sortTable('power')">Power (nW) ⇕</th>
+              </tr>
+            </thead>
+            <tbody id="net-table-body" class="divide-y divide-slate-800/60 font-mono">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Summary Text Accordion -->
+    <details class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs group">
+      <summary class="font-semibold text-sm cursor-pointer select-none text-white flex justify-between items-center">
+        <span>📄 View Raw summary.txt</span>
+        <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <pre id="raw-summary" class="mt-4 p-4 rounded-lg bg-slate-950 font-mono text-emerald-400 text-xs overflow-x-auto whitespace-pre leading-relaxed border border-slate-800"></pre>
+    </details>
+
+  </div>
+
+  <script>
+    // Demo Datasets
+    const DEMO_DATA = {
+      half_adder: {
+        module: 'half_adder',
+        nets: 4,
+        inputs: 2,
+        outputs: 2,
+        gates: 2,
+        vectors: 10000,
+        intervals: 9999,
+        seed: 42,
+        voltage_V: 1.0,
+        frequency_Hz: 100000000,
+        default_cap_fF: 2.0,
+        total_power_nW: 188.098810,
+        csv: `net,role,transitions,rising_transitions,falling_transitions,alpha,capacitance_fF,power_nW
+a,input,4996,2498,2498,0.499650,2.0000,49.964996
+b,input,5057,2529,2528,0.505751,2.0000,50.575058
+carry,output,3762,1881,1881,0.376238,2.0000,37.623762
+sum,output,4993,2497,2496,0.499350,2.0000,49.934993`,
+        summary: `================================================================================
+Netpower Dynamic Power Estimation Summary
+================================================================================
+Design Information:
+  Module Name:                 half_adder
+  Total Nets:                  4
+  Primary Inputs:              2
+  Primary Outputs:             2
+  Logic Gates:                 2
+
+Simulation Parameters:
+  Vectors:                     10000
+  Measured Intervals:          9999
+  Random Seed:                 42
+
+Electrical Parameters:
+  Operating Voltage:           1.000000 V
+  Operating Frequency:         100000000.000000 Hz
+  Default Capacitance:         2.0000 fF
+  Capacitance Overrides:       0
+
+Estimated Power Results:
+  Total Dynamic Power:         188.098810 nW
+  Total Dynamic Power (Watts): 1.880988e-07 W
+================================================================================`
+      },
+      full_adder: {
+        module: 'full_adder',
+        nets: 8,
+        inputs: 3,
+        outputs: 2,
+        gates: 5,
+        vectors: 10000,
+        intervals: 9999,
+        seed: 42,
+        voltage_V: 1.0,
+        frequency_Hz: 100000000,
+        default_cap_fF: 2.0,
+        total_power_nW: 376.407641,
+        csv: `net,role,transitions,rising_transitions,falling_transitions,alpha,capacitance_fF,power_nW
+a,input,4980,2490,2490,0.498050,2.0000,49.804980
+b,input,4915,2458,2457,0.491549,2.0000,49.154915
+c1,internal,3698,1849,1849,0.369837,2.0000,36.983698
+c2,internal,3735,1868,1867,0.373537,2.0000,37.353735
+cin,input,5145,2573,2572,0.514551,2.0000,51.455146
+cout,output,5071,2536,2535,0.507151,2.0000,50.715072
+s1,internal,5009,2505,2504,0.500950,2.0000,50.095010
+sum,output,5084,2542,2542,0.508451,2.0000,50.845085`,
+        summary: `================================================================================
+Netpower Dynamic Power Estimation Summary
+================================================================================
+Design Information:
+  Module Name:                 full_adder
+  Total Nets:                  8
+  Primary Inputs:              3
+  Primary Outputs:             2
+  Logic Gates:                 5
+
+Simulation Parameters:
+  Vectors:                     10000
+  Measured Intervals:          9999
+  Random Seed:                 42
+
+Estimated Power Results:
+  Total Dynamic Power:         376.407641 nW
+  Total Dynamic Power (Watts): 3.764076e-07 W
+================================================================================`
+      },
+      inverter: {
+        module: 'inverter',
+        nets: 2,
+        inputs: 1,
+        outputs: 1,
+        gates: 1,
+        vectors: 10000,
+        intervals: 9999,
+        seed: 42,
+        voltage_V: 1.0,
+        frequency_Hz: 100000000,
+        default_cap_fF: 2.0,
+        total_power_nW: 100.930093,
+        csv: `net,role,transitions,rising_transitions,falling_transitions,alpha,capacitance_fF,power_nW
+in,input,5046,2523,2523,0.504650,2.0000,50.465047
+out,output,5046,2523,2523,0.504650,2.0000,50.465047`,
+        summary: `================================================================================
+Netpower Dynamic Power Estimation Summary
+================================================================================
+Design Information:
+  Module Name:                 inverter
+  Total Nets:                  2
+  Primary Inputs:              1
+  Primary Outputs:             1
+  Logic Gates:                 1
+
+Simulation Parameters:
+  Vectors:                     10000
+  Measured Intervals:          9999
+  Random Seed:                 42
+
+Estimated Power Results:
+  Total Dynamic Power:         100.930093 nW
+  Total Dynamic Power (Watts): 1.009301e-07 W
+================================================================================`
+      }
+    };
+
+    let currentCircuit = 'half_adder';
+    let currentData = null;
+    let parsedNets = [];
+    let sortColumn = 'power';
+    let sortAsc = false;
+
+    function parseCSV(csvText) {
+      const lines = csvText.trim().split('\n');
+      if (lines.length < 2) return [];
+      const nets = [];
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map(p => p.trim());
+        if (parts.length >= 8) {
+          nets.push({
+            name: parts[0],
+            role: parts[1],
+            transitions: parseInt(parts[2], 10),
+            rising: parseInt(parts[3], 10),
+            falling: parseInt(parts[4], 10),
+            alpha: parseFloat(parts[5]),
+            base_capacitance_fF: parseFloat(parts[6]),
+            base_power_nW: parseFloat(parts[7]),
+            current_capacitance_fF: parseFloat(parts[6]),
+            current_power_nW: parseFloat(parts[7])
+          });
+        }
+      }
+      return nets;
+    }
+
+    function selectCircuit(name) {
+      currentCircuit = name;
+      ['half_adder', 'full_adder', 'inverter', 'custom'].forEach(id => {
+        const btn = document.getElementById(`btn-${id}`);
+        if (id === name) {
+          btn.className = 'px-3 py-1.5 rounded-md transition-colors bg-emerald-600 text-white font-semibold';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-md transition-colors text-slate-400 hover:text-white';
+        }
+      });
+
+      const uploadSection = document.getElementById('custom-upload-section');
+      if (name === 'custom') {
+        uploadSection.classList.remove('hidden');
+        if (!currentData || currentData.isPreset) {
+          return;
+        }
+      } else {
+        uploadSection.classList.add('hidden');
+        currentData = { ...DEMO_DATA[name], isPreset: true };
+        parsedNets = parseCSV(currentData.csv);
+        resetScalingParameters();
+      }
+    }
+
+    function resetScalingParameters() {
+      document.getElementById('slider-voltage').value = 1.0;
+      document.getElementById('slider-frequency').value = 100;
+      document.getElementById('slider-capacitance').value = 1.0;
+      updateScaledPower();
+    }
+
+    function updateScaledPower() {
+      const voltage = parseFloat(document.getElementById('slider-voltage').value);
+      const freqMHz = parseFloat(document.getElementById('slider-frequency').value);
+      const capScale = parseFloat(document.getElementById('slider-capacitance').value);
+
+      document.getElementById('val-voltage').textContent = `${voltage.toFixed(2)} V`;
+      document.getElementById('val-frequency').textContent = `${freqMHz.toFixed(0)} MHz`;
+      document.getElementById('val-capacitance').textContent = `${capScale.toFixed(2)}× (${(2.0 * capScale).toFixed(1)} fF)`;
+
+      const freqHz = freqMHz * 1e6;
+      let totalPowerNW = 0;
+      let totalAlpha = 0;
+
+      parsedNets.forEach(net => {
+        net.current_capacitance_fF = net.base_capacitance_fF * capScale;
+        const C_F = net.current_capacitance_fF * 1e-15;
+        const P_W = 0.5 * net.alpha * C_F * (voltage * voltage) * freqHz;
+        net.current_power_nW = P_W * 1e9;
+        totalPowerNW += net.current_power_nW;
+        totalAlpha += net.alpha;
+      });
+
+      document.getElementById('kpi-module').textContent = currentData.module || 'custom';
+      document.getElementById('kpi-power').textContent = `${totalPowerNW.toFixed(2)} nW`;
+      document.getElementById('kpi-nets').textContent = parsedNets.length;
+      document.getElementById('kpi-gates').textContent = currentData.gates || '-';
+      document.getElementById('kpi-vectors').textContent = (currentData.vectors || 10000).toLocaleString();
+      document.getElementById('kpi-alpha').textContent = (parsedNets.length ? (totalAlpha / parsedNets.length).toFixed(4) : '-');
+
+      document.getElementById('raw-summary').textContent = currentData.summary || 'Custom loaded dataset';
+
+      renderTable();
+      renderBarChart(totalPowerNW);
+    }
+
+    function sortTable(col) {
+      if (sortColumn === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortColumn = col;
+        sortAsc = (col === 'name' || col === 'role');
+      }
+      renderTable();
+    }
+
+    function renderTable() {
+      const search = document.getElementById('net-search').value.toLowerCase();
+      const roleFilter = document.getElementById('role-filter').value;
+
+      let filtered = parsedNets.filter(net => {
+        const matchesName = net.name.toLowerCase().includes(search);
+        const matchesRole = (roleFilter === 'ALL' || net.role === roleFilter);
+        return matchesName && matchesRole;
+      });
+
+      filtered.sort((a, b) => {
+        let valA, valB;
+        if (sortColumn === 'name') { valA = a.name; valB = b.name; }
+        else if (sortColumn === 'role') { valA = a.role; valB = b.role; }
+        else if (sortColumn === 'transitions') { valA = a.transitions; valB = b.transitions; }
+        else if (sortColumn === 'alpha') { valA = a.alpha; valB = b.alpha; }
+        else if (sortColumn === 'capacitance') { valA = a.current_capacitance_fF; valB = b.current_capacitance_fF; }
+        else { valA = a.current_power_nW; valB = b.current_power_nW; }
+
+        if (typeof valA === 'string') {
+          return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        return sortAsc ? (valA - valB) : (valB - valA);
+      });
+
+      document.getElementById('table-count').textContent = filtered.length;
+
+      const tbody = document.getElementById('net-table-body');
+      tbody.innerHTML = '';
+
+      filtered.forEach(net => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition-colors';
+
+        let roleBadge = 'bg-slate-700/50 text-slate-300 border-slate-600';
+        if (net.role === 'input') roleBadge = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+        else if (net.role === 'output') roleBadge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        else if (net.role === 'internal') roleBadge = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+        else if (net.role === 'input_output') roleBadge = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-bold text-white">${net.name}</td>
+          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-sans border ${roleBadge}">${net.role}</span></td>
+          <td class="py-2.5 px-3 text-right text-slate-400">${net.transitions.toLocaleString()} <span class="text-[10px] text-slate-500">(↑${net.rising} ↓${net.falling})</span></td>
+          <td class="py-2.5 px-3 text-right text-cyan-400 font-semibold">${net.alpha.toFixed(4)}</td>
+          <td class="py-2.5 px-3 text-right text-slate-400">${net.current_capacitance_fF.toFixed(2)}</td>
+          <td class="py-2.5 px-3 text-right font-bold text-emerald-400">${net.current_power_nW.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderBarChart(totalPowerNW) {
+      const container = document.getElementById('power-bar-container');
+      container.innerHTML = '';
+
+      const sortedByPower = [...parsedNets].sort((a, b) => b.current_power_nW - a.current_power_nW);
+      if (sortedByPower.length > 0) {
+        document.getElementById('stat-peak-net').textContent = `${sortedByPower[0].name} (${sortedByPower[0].current_power_nW.toFixed(1)} nW)`;
+      }
+
+      sortedByPower.forEach(net => {
+        const pct = totalPowerNW > 0 ? (net.current_power_nW / totalPowerNW * 100) : 0;
+        const item = document.createElement('div');
+        item.className = 'space-y-1';
+        item.innerHTML = `
+          <div class="flex justify-between text-xs">
+            <span class="font-mono font-medium text-white">${net.name} <span class="text-[10px] text-slate-400">(${net.role})</span></span>
+            <span class="font-mono text-emerald-400">${net.current_power_nW.toFixed(1)} nW <span class="text-[10px] text-slate-500">(${pct.toFixed(1)}%)</span></span>
+          </div>
+          <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-300" style="width: ${Math.max(pct, 2)}%"></div>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function handleFileUpload(event) {
+      const files = event.target.files;
+      if (!files.length) return;
+      for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target.result;
+          if (file.name.endsWith('.csv') || content.includes('net,role,transitions')) {
+            loadCustomCSV(content, file.name);
+          } else if (file.name.endsWith('.txt') || content.includes('Summary')) {
+            if (currentData) currentData.summary = content;
+            document.getElementById('raw-summary').textContent = content;
+          }
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    function handlePasteInput() {
+      const input = document.getElementById('paste-input').value;
+      if (!input.trim()) return;
+      loadCustomCSV(input, 'pasted_data.csv');
+    }
+
+    function loadCustomCSV(csvContent, filename) {
+      const nets = parseCSV(csvContent);
+      if (nets.length === 0) {
+        alert('Could not parse valid CSV rows. Expected format: net,role,transitions,rising_transitions,falling_transitions,alpha,capacitance_fF,power_nW');
+        return;
+      }
+      currentData = {
+        module: filename.replace('.csv', ''),
+        csv: csvContent,
+        summary: 'Custom CSV loaded: ' + filename,
+        isPreset: false
+      };
+      parsedNets = nets;
+      updateScaledPower();
+    }
+
+    selectCircuit('half_adder');
+  </script>
+</body>
+</html>
